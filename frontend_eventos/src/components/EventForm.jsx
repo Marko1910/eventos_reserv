@@ -1,20 +1,19 @@
 // src/components/EventForm.jsx
 import { useEffect, useState } from "react";
 import API from "../services/api";
-import { motion } from "framer-motion";
 
-export default function EventForm({ initialData = null, onSuccess, onCancel }) {
-  const [tipos, setTipos] = useState([]);
+export default function EventForm({ initialData, onSuccess, onCancel }) {
   const [form, setForm] = useState({
     nombre: "",
+    descripcion: "",
     fecha: "",
     lugar: "",
     costo: "",
     tipo_evento_id: "",
-    descripcion: "",
+    imagen: null
   });
-  const [file, setFile] = useState(null);
-  const [loading, setLoading] = useState(false);
+
+  const [tipos, setTipos] = useState([]);
 
   useEffect(() => {
     API.get("tipos_evento/")
@@ -24,85 +23,129 @@ export default function EventForm({ initialData = null, onSuccess, onCancel }) {
     if (initialData) {
       setForm({
         nombre: initialData.nombre || "",
-        fecha: initialData.fecha ? initialData.fecha.replace("Z", "") : "",
+        descripcion: initialData.descripcion || "",
+        fecha: initialData.fecha || "",
         lugar: initialData.lugar || "",
         costo: initialData.costo || "",
         tipo_evento_id: initialData.tipo_evento?.id || "",
-        descripcion: initialData.descripcion || "",
+        imagen: null
       });
     }
   }, [initialData]);
 
   const handleChange = (e) => {
-    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value, files } = e.target;
+    if (name === "imagen") {
+      setForm({ ...form, imagen: files[0] });
+    } else {
+      setForm({ ...form, [name]: value });
+    }
   };
-
-  const handleFile = (e) => setFile(e.target.files[0]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    try {
-      const data = new FormData();
-      data.append("nombre", form.nombre);
-      data.append("fecha", form.fecha);
-      data.append("lugar", form.lugar);
-      data.append("costo", form.costo);
-      data.append("tipo_evento_id", form.tipo_evento_id);
-      data.append("descripcion", form.descripcion);
-      if (file) data.append("imagen", file);
 
-      if (initialData && initialData.id) {
-        await API.patch(`eventos/${initialData.id}/`, data, {
-          headers: { "Content-Type": "multipart/form-data" },
+    const formData = new FormData();
+    Object.entries(form).forEach(([key, value]) => {
+      if (value !== null) formData.append(key, value);
+    });
+
+    try {
+      if (initialData) {
+        await API.patch(`eventos/${initialData.id}/`, formData, {
+          headers: { "Content-Type": "multipart/form-data" }
         });
       } else {
-        await API.post("eventos/", data, {
-          headers: { "Content-Type": "multipart/form-data" },
+        await API.post("eventos/", formData, {
+          headers: { "Content-Type": "multipart/form-data" }
         });
       }
-
-      onSuccess && onSuccess();
+      onSuccess();
     } catch (err) {
-      console.error(err);
-      alert("Ocurrió un error al guardar el evento.");
-    } finally {
-      setLoading(false);
+      console.error(err.response?.data || err);
+      alert("Error al guardar el evento");
     }
   };
 
   return (
-    <motion.form
-      onSubmit={handleSubmit}
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-white p-6 rounded-xl shadow-md w-full max-w-xl"
-    >
-      <div className="grid grid-cols-1 gap-3">
-        <input name="nombre" value={form.nombre} onChange={handleChange}
-          className="p-3 border rounded-lg" placeholder="Nombre del evento" required />
-        <input name="fecha" value={form.fecha} onChange={handleChange}
-          type="datetime-local" className="p-3 border rounded-lg" required />
-        <input name="lugar" value={form.lugar} onChange={handleChange}
-          className="p-3 border rounded-lg" placeholder="Lugar" required />
-        <input name="costo" value={form.costo} onChange={handleChange}
-          type="number" step="0.01" className="p-3 border rounded-lg" placeholder="Costo" required />
-        <select name="tipo_evento_id" value={form.tipo_evento_id} onChange={handleChange}
-          className="p-3 border rounded-lg" required>
-          <option value="">Selecciona tipo</option>
-          {tipos.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
-        </select>
-        <textarea name="descripcion" value={form.descripcion} onChange={handleChange}
-          className="p-3 border rounded-lg" placeholder="Descripción" rows={3} />
-        <input type="file" accept="image/*" onChange={handleFile} />
-        <div className="flex gap-3 justify-end mt-2">
-          <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg border">Cancelar</button>
-          <button type="submit" disabled={loading}
-            className="px-4 py-2 rounded-lg bg-primary text-white">
-            {loading ? "Guardando..." : (initialData ? "Actualizar" : "Crear")}
-          </button>
-        </div>
+    <form onSubmit={handleSubmit} className="bg-white p-6 rounded-2xl shadow-md w-[420px]">
+      <h3 className="text-xl font-semibold mb-4">
+        {initialData ? "Editar Evento" : "Nuevo Evento"}
+      </h3>
+
+      <input
+        name="nombre"
+        value={form.nombre}
+        onChange={handleChange}
+        placeholder="Nombre"
+        className="w-full p-2 border rounded mb-3"
+        required
+      />
+      <textarea
+        name="descripcion"
+        value={form.descripcion}
+        onChange={handleChange}
+        placeholder="Descripción"
+        className="w-full p-2 border rounded mb-3"
+      />
+
+      <input
+        type="date"
+        name="fecha"
+        value={form.fecha}
+        onChange={handleChange}
+        className="w-full p-2 border rounded mb-3"
+      />
+      <input
+        name="lugar"
+        value={form.lugar}
+        onChange={handleChange}
+        placeholder="Lugar"
+        className="w-full p-2 border rounded mb-3"
+        required
+      />
+      <input
+        type="number"
+        step="0.01"
+        name="costo"
+        value={form.costo}
+        onChange={handleChange}
+        placeholder="Costo"
+        className="w-full p-2 border rounded mb-3"
+        required
+      />
+
+      <select
+        name="tipo_evento_id"
+        value={form.tipo_evento_id}
+        onChange={handleChange}
+        className="w-full p-2 border rounded mb-3"
+        required
+      >
+        <option value="">Selecciona un tipo</option>
+        {tipos.map((t) => (
+          <option key={t.id} value={t.id}>
+            {t.nombre}
+          </option>
+        ))}
+      </select>
+
+      <input
+        type="file"
+        name="imagen"
+        onChange={handleChange}
+        accept="image/*"
+        className="w-full mb-3"
+      />
+
+      <div className="flex justify-end gap-3">
+        <button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-300 rounded">
+          Cancelar
+        </button>
+        <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded">
+          {initialData ? "Actualizar" : "Guardar"}
+        </button>
       </div>
-    </motion.form>
+    </form>
   );
 }
